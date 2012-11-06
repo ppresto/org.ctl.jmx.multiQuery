@@ -6,8 +6,10 @@ import javax.management.OperationsException;
 import javax.management.openmbean.CompositeDataSupport;
 import javax.management.openmbean.CompositeType;
 import javax.management.remote.JMXConnector;
+import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 import java.io.*;
+import java.net.MalformedURLException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -75,26 +77,31 @@ public class JMXMultiQuery
         }
         finally {
             try {
+            	
                 disconnect();
             }
             catch (IOException ignore) { }
         }
     }
-
-    private void connect() throws IOException
-	{
-         JMXServiceURL jmxUrl = new JMXServiceURL(url);
-                  
-         if(username!=null) {
-        	 Map<String, String[]> m = new HashMap<String,String[]>();
-        	 m.put(JMXConnector.CREDENTIALS,new String[] {username,password});
-        	 connector = jmxProvider.getConnector(jmxUrl, m);
-         } else {
-        	 connector = jmxProvider.getConnector(jmxUrl, null);
-         }
-         connection = connector.getMBeanServerConnection();
-	}
-	
+    private void connect() {
+    	try {
+    		HashMap<String,String[]> env = new HashMap<String,String[]>();
+    		String[] creds = new String[2];
+    		creds[0] = username;
+    		creds[1] = password;
+    		env.put(JMXConnector.CREDENTIALS, creds);
+    		JMXServiceURL serviceUrl = new JMXServiceURL(url);
+    		connector = JMXConnectorFactory.connect(serviceUrl, env);
+    		//JMXServiceURL serviceUrl = new JMXServiceURL("rmi", "", 0, url);
+    	    //this.jmxConnector = JMXConnectorFactory.connect(serviceURL, null);
+    	    connection = connector.getMBeanServerConnection(); 
+    	} catch (MalformedURLException e) {
+    		// should not reach here
+    	} catch (IOException e) {
+    		System.err.println("\nCommunication error: " + e.getMessage());
+    		System.exit(1);
+    	}
+    }
 
 	private void disconnect() throws IOException
     {
