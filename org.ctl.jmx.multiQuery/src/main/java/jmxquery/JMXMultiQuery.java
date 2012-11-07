@@ -11,12 +11,10 @@ import javax.management.remote.JMXServiceURL;
 import java.io.*;
 import java.net.MalformedURLException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 
 
 /**
@@ -45,6 +43,7 @@ public class JMXMultiQuery
     private String methodName;
 	private String object;
 	private String username, password;
+	private String arg2, arg3, arg4, arg5, arg6, arg7, arg8;
 
     private Object defaultValue;
 	
@@ -66,34 +65,72 @@ public class JMXMultiQuery
         this.out = out;
     }
 
-    public int runCommand(String... args)
+    public int runCommand(String... args) throws IOException
     {
+    	Map<String,String> jmxAttributes = new HashMap <String,String>();
+        List<Map<String,String>> jmxAttrList = new ArrayList <Map<String,String>>();
         try {
             parse(args);
             connect(url);
             execute();
-            Map<String,String> jmxAttributes = new HashMap <String,String>(report(out));
-            List<Map<String,String>> jmxAttrList = new ArrayList <Map<String,String>>();
-            jmxAttrList.add(jmxAttributes);
-            for (Map<String, String> a: jmxAttrList){
-            	for (Map.Entry<String, String> v : a.entrySet()){
-            		System.out.println("\nattribute name:"+ v.getKey());
-                	System.out.println("attribute value:"+ v.getValue());
-            	}
+            jmxAttrList.add(report(out));
+            if ( arg2 != null){
+            	reRun(arg2);
+            	jmxAttrList.add(report(out));
             }
-            //return report(out);
-            return 1;
+            if ( arg3 != null){
+            	reRun(arg3);
+            	jmxAttrList.add(report(out));
+            }
+            if ( arg4 != null){
+            	reRun(arg4);
+            	jmxAttrList.add(report(out));
+            }
+            if ( arg5 != null){
+            	reRun(arg5);
+            	jmxAttrList.add(report(out));
+            }
+            if ( arg6 != null){
+            	reRun(arg6);
+            	jmxAttrList.add(report(out));
+            }
+            if ( arg7 != null){
+            	reRun(arg7);
+            	jmxAttrList.add(report(out));
+            }
+            if ( arg8 != null){
+            	reRun(arg8);
+            	jmxAttrList.add(report(out));
+            }
+            
+            jmxMonitor monitor = new jmxMonitor(jmxAttrList);
+            if (monitor.checkState(RETURN_CRITICAL)) {
+            	disconnect();
+            	return RETURN_CRITICAL;
+            }
+            if (monitor.checkState(RETURN_WARNING)) {
+            	disconnect();
+            	return RETURN_WARNING;
+            }
+            if (monitor.checkState(RETURN_OK)) {
+            	disconnect();
+            	return RETURN_OK;
+            }
+            return RETURN_UNKNOWN;
         }
         catch(Exception ex) {
             return report(ex, out);
         }
         finally {
-            try {
-            	
                 disconnect();
             }
-            catch (IOException ignore) { }
-        }
+    }
+    
+    
+    private void reRun(String arg) throws Exception{
+        	String [] nextArg = arg.split(" ");
+        	parse(nextArg);
+        	execute();
     }
     private void connect(String url) {
     	try {
@@ -108,7 +145,7 @@ public class JMXMultiQuery
     	    //this.jmxConnector = JMXConnectorFactory.connect(serviceURL, null);
     	    connection = connector.getMBeanServerConnection(); 
     	} catch (MalformedURLException e) {
-    		// should not reach here
+    		System.err.println("\nURL Exception: " + e.getMessage());
     	} catch (IOException e) {
     		System.err.println("\nCommunication error: " + e.getMessage());
     		System.exit(1);
@@ -127,8 +164,9 @@ public class JMXMultiQuery
 	/**
      * The main method, invoked when running from command line.
 	 * @param args The supplied parameters.
+	 * @throws IOException 
 	 */
-	public static void main(String[] args)
+	public static void main(String[] args) throws IOException
     {
        // System.exit(new JMXMultiQuery(new DefaultJMXProvider(), System.out).runCommand(args));
         System.exit(new JMXMultiQuery(System.out).runCommand(args));
@@ -191,12 +229,15 @@ public class JMXMultiQuery
         boolean shown = false;
         if(infoData==null || verbatim>=2){
             out.print(' ');
+            String thresholds = "";
+            if (warning != null){thresholds = ";"+ warning;} else{thresholds = ";";}
+            if (critical != null){thresholds = thresholds +";"+ critical;} else{thresholds = thresholds +";";}
             if(attributeKey !=null) {
                 out.print(attributeName +'.'+ attributeKey +"="+checkData);
                 jmxAttr.put(attributeName.toString()+'.'+attributeKey.toString(), checkData.toString());
                 if ( checkData instanceof Number) {
                     out.print (" | "+ attributeName +'.'+ attributeKey +"="+checkData);
-                    jmxAttr.put("perfData"," | "+ attributeName.toString()+'.'+attributeKey.toString()+"="+checkData.toString());
+                    jmxAttr.put("perfData", attributeName.toString()+'.'+attributeKey.toString() +"="+ checkData.toString() +thresholds+";;");
                 }
             }
             else {
@@ -204,7 +245,7 @@ public class JMXMultiQuery
                 jmxAttr.put(attributeName.toString(), checkData.toString());
                 if ( checkData instanceof Number) {
                     out.print (" | "+ attributeName +"="+checkData);
-                    jmxAttr.put("perfData", " | "+ attributeName.toString() +"="+ checkData.toString());
+                    jmxAttr.put("perfData", attributeName.toString() +"="+ checkData.toString()+thresholds+";;");
                 }
                 shown=true;
             }
@@ -355,6 +396,27 @@ public class JMXMultiQuery
                 else if(option.equals("-c")) {
 					critical = args[++i];
 				}
+                else if(option.equals("-2")) {
+                	arg2 = args[++i];
+                }
+                else if(option.equals("-3")) {
+                	arg3 = args[++i];
+                }
+                else if(option.equals("-4")) {
+                	arg4 = args[++i];
+                }
+                else if(option.equals("-5")) {
+                	arg5 = args[++i];
+                }
+                else if(option.equals("-6")) {
+                	arg6 = args[++i];
+                }
+                else if(option.equals("-7")) {
+                	arg7 = args[++i];
+                }
+                else if(option.equals("-8")) {
+                	arg8 = args[++i];
+                }
                 else if(option.equals("-username")) {
 					username = args[++i];
 				}
