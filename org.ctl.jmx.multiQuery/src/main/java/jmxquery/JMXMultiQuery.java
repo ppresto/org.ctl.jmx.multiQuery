@@ -1,55 +1,31 @@
 package jmxquery;
 
 import javax.management.MBeanServerConnection;
-import javax.management.ObjectName;
-import javax.management.OperationsException;
-import javax.management.openmbean.CompositeDataSupport;
-import javax.management.openmbean.CompositeType;
 import javax.management.remote.JMXConnector;
-import javax.management.remote.JMXConnectorFactory;
-import javax.management.remote.JMXServiceURL;
 import java.io.*;
-import java.net.MalformedURLException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
 
 /**
  * 
  * JMXQuery is used for local or remote request of JMX attributes
  * It requires JRE 1.5 to be used for compilation and execution.
  * Look method main for description how it can be invoked.
- * 
- * This plugin was found on nagiosexchange.  It lacked a username/password/role system.
- * 
  * @author unknown
  * @author Ryan Gravener (<a href="http://ryangravener.com/app/contact">rgravener</a>)
  * @author Per Huss mr.per.huss (a) gmail.com
+ * 
+ * This plugin was found on code.google.com and was updated to support 
+ * multiple queries, objects with spaces, inverse threasholds and other minor enhancements 
+ * 
+ * @author Patrick.Presto@centurylink.com
+ * 
  */
 public class JMXMultiQuery
 {
-    //private final JMXProvider jmxProvider;
-    private final PrintStream out;
-    private String url;
-	private int verbatim;
 	private JMXConnector connector;
-	private MBeanServerConnection connection;
-	private String warning, critical;
-	private String attributeName, infoAttribute;
-	private String attributeKey, infoKey;
-    private String methodName;
-	private String object;
-	private String username, password;
-	private String arg2, arg3, arg4, arg5, arg6, arg7, arg8;
-
-    private Object defaultValue;
-	
-	private Object checkData;
-	private Object infoData;
-	
 	private static final int RETURN_OK = 0; // 	 The plugin was able to check the service and it appeared to be functioning properly
 	private static final String OK_STRING = "JMX OK -"; 
 	private static final int RETURN_WARNING = 1; // The plugin was able to check the service, but it appeared to be above some "warning" threshold or did not appear to be working properly
@@ -59,97 +35,63 @@ public class JMXMultiQuery
 	private static final int RETURN_UNKNOWN = 3; // Invalid command line arguments were supplied to the plugin or low-level failures internal to the plugin (such as unable to fork, or open a tcp socket) that prevent it from performing the specified operation. Higher-level errors (such as name resolution errors, socket timeouts, etc) are outside of the control of plugins and should generally NOT be reported as UNKNOWN states.
 	private static final String UNKNOWN_STRING = "JMX UNKNOWN";
 
-   //public JMXMultiQuery(JMXProvider jmxProvider, PrintStream out)
-    public JMXMultiQuery(PrintStream out) {
-        //this.jmxProvider = jmxProvider;
-        this.out = out;
+    public JMXMultiQuery() {
+        //this.out = out;
     }
 
-    public int runCommand(String... args) throws IOException
+    public int runCommand(String... args) throws Exception
     {
-    	Map<String,String> jmxAttributes = new HashMap <String,String>();
+    	Map<String,String> monitorData = new HashMap <String,String>();
         List<Map<String,String>> jmxAttrList = new ArrayList <Map<String,String>>();
-        try {
-            parse(args);
-            connect(url);
-            execute();
-            jmxAttrList.add(report(out));
-            if ( arg2 != null){
-            	reRun(arg2);
-            	jmxAttrList.add(report(out));
-            }
-            if ( arg3 != null){
-            	reRun(arg3);
-            	jmxAttrList.add(report(out));
-            }
-            if ( arg4 != null){
-            	reRun(arg4);
-            	jmxAttrList.add(report(out));
-            }
-            if ( arg5 != null){
-            	reRun(arg5);
-            	jmxAttrList.add(report(out));
-            }
-            if ( arg6 != null){
-            	reRun(arg6);
-            	jmxAttrList.add(report(out));
-            }
-            if ( arg7 != null){
-            	reRun(arg7);
-            	jmxAttrList.add(report(out));
-            }
-            if ( arg8 != null){
-            	reRun(arg8);
-            	jmxAttrList.add(report(out));
-            }
-            
-            jmxMonitor monitor = new jmxMonitor(jmxAttrList);
-            if (monitor.checkState(RETURN_CRITICAL)) {
+        jmxMonitor monitor = new jmxMonitor();
+        jmxMonitor mon = null;
+        MBeanServerConnection connection = null;
+       try {
+			monitor.parseArgs(args);
+			connection = monitor.connect(monitor.getUrl());
+			monitor.check(connection);
+			monitorData = monitor.validate();
+			jmxAttrList.add(monitorData);
+       } catch (ParseError e) {
+			e.printStackTrace();
+		} catch(Exception ex) {
+           return monitor.report(ex);
+       }
+       try {
+			List<String> additionalMonitors = monitor.searchForAdditionalMonitors();
+			if (!additionalMonitors.isEmpty()) {
+				for( String m : additionalMonitors) {
+					mon = new jmxMonitor(monitor);
+					mon.parseArgs(m.split(" "));
+					mon.check(connection);
+					Map<String,String> monData = new HashMap <String,String>(mon.validate());
+					jmxAttrList.add(monData);	
+				}
+			}
+			
+			jmxMonitorGroup monitorGroup = new jmxMonitorGroup(jmxAttrList);
+            if (monitorGroup.checkState(RETURN_CRITICAL)) {
             	disconnect();
             	return RETURN_CRITICAL;
             }
-            if (monitor.checkState(RETURN_WARNING)) {
+            if (monitorGroup.checkState(RETURN_WARNING)) {
             	disconnect();
             	return RETURN_WARNING;
             }
-            if (monitor.checkState(RETURN_OK)) {
+            if (monitorGroup.checkState(RETURN_OK)) {
             	disconnect();
             	return RETURN_OK;
             }
-            return RETURN_UNKNOWN;
-        }
-        catch(Exception ex) {
-            return report(ex, out);
+            
+		} catch (ParseError e) {
+			e.printStackTrace();
+		} catch(Exception ex) {
+            return mon.report(ex);
         }
         finally {
                 disconnect();
             }
-    }
-    
-    
-    private void reRun(String arg) throws Exception{
-        	String [] nextArg = arg.split(" ");
-        	parse(nextArg);
-        	execute();
-    }
-    private void connect(String url) {
-    	try {
-    		HashMap<String,String[]> env = new HashMap<String,String[]>();
-    		String[] creds = new String[2];
-    		creds[0] = username;
-    		creds[1] = password;
-    		env.put(JMXConnector.CREDENTIALS, creds);
-    		JMXServiceURL serviceUrl = new JMXServiceURL(url);
-    		connector = JMXConnectorFactory.connect(serviceUrl, env);
-    		//JMXServiceURL serviceUrl = new JMXServiceURL("rmi", "", 0, url);
-    	    //this.jmxConnector = JMXConnectorFactory.connect(serviceURL, null);
-    	    connection = connector.getMBeanServerConnection(); 
-    	} catch (MalformedURLException e) {
-    		System.err.println("\nURL Exception: " + e.getMessage());
-    	} catch (IOException e) {
-    		System.err.println("\nCommunication error: " + e.getMessage());
-    		System.exit(1);
-    	}
+       return RETURN_UNKNOWN;
     }
 
 	private void disconnect() throws IOException
@@ -160,308 +102,12 @@ public class JMXMultiQuery
         }
 	}
 	
-	
-	/**
-     * The main method, invoked when running from command line.
-	 * @param args The supplied parameters.
-	 * @throws IOException 
-	 */
 	public static void main(String[] args) throws IOException
     {
-       // System.exit(new JMXMultiQuery(new DefaultJMXProvider(), System.out).runCommand(args));
-        System.exit(new JMXMultiQuery(System.out).runCommand(args));
-    }
-
-    private int report(Exception ex, PrintStream out)
-	{
-		if(ex instanceof ParseError){
-			out.print(UNKNOWN_STRING+" ");
-			reportException(ex, out);		
-			out.println(" Usage: check_jmx -help ");
-			return RETURN_UNKNOWN;
-		}else{
-			out.print(CRITICAL_STRING+" ");
-			reportException(ex, out);		
-			out.println();
-			return RETURN_CRITICAL;
-		}
-	}
-
-	@SuppressWarnings("ThrowableResultOfMethodCallIgnored")
-    private void reportException(Exception ex, PrintStream out)
-    {
-        out.print(verbatim < 2
-                ? rootCause(ex).getMessage()
-                : ex.getMessage() + " connecting to " + object + " by URL " + url);
-
-		if(verbatim>=3)		
-			ex.printStackTrace(out);
-	}
-
-	@SuppressWarnings("ThrowableResultOfMethodCallIgnored")
-    private static Throwable rootCause(Throwable ex)
-    {
-        return ex.getCause() == null ? ex : rootCause(ex.getCause());
-    }
-
-
-	private Map<String, String> report(PrintStream out)
-	{
-		int status;
-		Map<String,String> jmxAttr = new HashMap<String,String>();
-		if(critical != null && compare( critical )){
-			status = RETURN_CRITICAL;	
-			jmxAttr.put("status",String.valueOf(status));
-			jmxAttr.put("statusDesc",CRITICAL_STRING);
-			out.print(CRITICAL_STRING);
-		}else if (warning != null && compare( warning)){
-			status = RETURN_WARNING;
-			jmxAttr.put("status",String.valueOf(status));
-			jmxAttr.put("statusDesc",WARNING_STRING);
-			out.print(WARNING_STRING);
-		}else{
-			status = RETURN_OK;
-			jmxAttr.put("status",String.valueOf(status));
-			jmxAttr.put("statusDesc",OK_STRING);
-			out.print(OK_STRING);
-		}
-
-        boolean shown = false;
-        if(infoData==null || verbatim>=2){
-            out.print(' ');
-            String thresholds = "";
-            if (warning != null){thresholds = ";"+ warning;} else{thresholds = ";";}
-            if (critical != null){thresholds = thresholds +";"+ critical;} else{thresholds = thresholds +";";}
-            if(attributeKey !=null) {
-                out.print(attributeName +'.'+ attributeKey +"="+checkData);
-                jmxAttr.put(attributeName.toString()+'.'+attributeKey.toString(), checkData.toString());
-                if ( checkData instanceof Number) {
-                    out.print (" | "+ attributeName +'.'+ attributeKey +"="+checkData);
-                    jmxAttr.put("perfData", attributeName.toString()+'.'+attributeKey.toString() +"="+ checkData.toString() +thresholds+";;");
-                }
-            }
-            else {
-                out.print(attributeName +"="+checkData);
-                jmxAttr.put(attributeName.toString(), checkData.toString());
-                if ( checkData instanceof Number) {
-                    out.print (" | "+ attributeName +"="+checkData);
-                    jmxAttr.put("perfData", attributeName.toString() +"="+ checkData.toString()+thresholds+";;");
-                }
-                shown=true;
-            }
-        }
-
-		if(!shown && infoData!=null){
-			if(infoData instanceof CompositeDataSupport)
-				report((CompositeDataSupport)infoData, out);
-			else
-				out.print(infoData.toString());
-				jmxAttr.put("infoData", infoData.toString());
-		}
-		
-		//jmxAttrList.add((Map.Entry<String, String>) jmxAttr.entrySet());
-		//out.println();
-		//return status;
-		return jmxAttr;
-	}
-
-	@SuppressWarnings("unchecked")
-	private void report(CompositeDataSupport data, PrintStream out) {
-		CompositeType type = data.getCompositeType();
-		out.print(",");
-		for(Iterator it = type.keySet().iterator();it.hasNext();){
-			String key = (String) it.next();
-			if(data.containsKey(key))
-				out.print(key+'='+data.get(key));
-			if(it.hasNext())
-				out.print(';');
-		}
-	}
-
-
-	private boolean compare(String level) {		
-	if (warning != null && critical != null){
-		if(checkData instanceof Number && Double.parseDouble(warning) > Double.parseDouble(critical) ) {
-			Number check = (Number)checkData;
-			if(check.doubleValue()==Math.floor(check.doubleValue())) {
-				return check.doubleValue()<=Double.parseDouble(level);
-			} else {
-				return check.longValue()>=Long.parseLong(level);
-			}
-		}
-		if(checkData instanceof Number && Double.parseDouble(warning) < Double.parseDouble(critical) ) {
-			Number check = (Number)checkData;
-			if(check.doubleValue()==Math.floor(check.doubleValue())) {
-				return check.doubleValue()>=Double.parseDouble(level);
-			} else {
-				return check.longValue()>=Long.parseLong(level);
-			}
-		}
-	}
-		if(checkData instanceof Number ) {
-			Number check = (Number)checkData;
-			if(check.doubleValue()==Math.floor(check.doubleValue())) {
-				return check.doubleValue()>=Double.parseDouble(level);
-			} else {
-				return check.longValue()>=Long.parseLong(level);
-			}
-		}
-		if(checkData instanceof String) {
-			return checkData.equals(level);
-		}
-		if(checkData instanceof Boolean) {
-			return checkData.equals(Boolean.parseBoolean(level));
-		}
-		throw new RuntimeException(level + "is not of type Number,String or Boolean");
-	}
-
-
-	private void execute() throws Exception
-    {
-        Object value;
         try {
-            value = attributeName != null
-                           ? connection.getAttribute(new ObjectName(object), attributeName)
-                           : connection.invoke(new ObjectName(object), methodName, null, null);
-        }
-        catch(OperationsException e)
-        {
-            if(defaultValue != null)
-                value = defaultValue;
-            else
-                throw e;
-        }
-
-		if(value instanceof CompositeDataSupport) {
-            if(attributeKey ==null) {
-                throw new ParseError("Attribute key is null for composed data "+object);
-            }
-            checkData = ((CompositeDataSupport) value).get(attributeKey);
+			System.exit(new JMXMultiQuery().runCommand(args));
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
-        else {
-			checkData = value;
-		}
-		
-		if(infoAttribute !=null){
-			Object infoValue = infoAttribute.equals(attributeName)
-                    ? value :
-                    connection.getAttribute(new ObjectName(object), infoAttribute);
-			if(infoKey !=null && (infoValue instanceof CompositeDataSupport) && verbatim<4){
-                infoData = ((CompositeDataSupport) value).get(infoKey); // todo: Possible bug? value <=> infoValue
-			}
-            else {
-				infoData = infoValue;
-			}
-		}
-	}
-
-
-	private void parse(String[] args) throws ParseError
-	{
-		try{
-			for(int i=0;i<args.length;i++){
-				String option = args[i];
-				if(option.equals("-help"))
-				{
-					printHelp(System.out);
-					System.exit(RETURN_UNKNOWN);
-				}
-                else if(option.equals("-U")) {
-					url = args[++i];
-				}
-                else if(option.equals("-O")) {
-					object = args[++i];
-				}
-                else if(option.equals("-A")) {
-					attributeName = args[++i];
-				}
-                else if(option.equals("-I")) {
-					infoAttribute = args[++i];
-				}
-                else if(option.equals("-J")) {
-					infoKey = args[++i];
-				}
-                else if(option.equals("-K")) {
-					attributeKey = args[++i];
-				}
-                else if(option.equals("-M")) {
-                    methodName = args[++i];
-                }
-                else if(option.startsWith("-v")) {
-					verbatim = option.length()-1;
-				}
-                else if(option.equals("-w")) {
-					warning = args[++i];
-				}
-                else if(option.equals("-c")) {
-					critical = args[++i];
-				}
-                else if(option.equals("-2")) {
-                	arg2 = args[++i];
-                }
-                else if(option.equals("-3")) {
-                	arg3 = args[++i];
-                }
-                else if(option.equals("-4")) {
-                	arg4 = args[++i];
-                }
-                else if(option.equals("-5")) {
-                	arg5 = args[++i];
-                }
-                else if(option.equals("-6")) {
-                	arg6 = args[++i];
-                }
-                else if(option.equals("-7")) {
-                	arg7 = args[++i];
-                }
-                else if(option.equals("-8")) {
-                	arg8 = args[++i];
-                }
-                else if(option.equals("-username")) {
-					username = args[++i];
-				}
-                else if(option.equals("-password")) {
-					password = args[++i];
-				}
-                else if(option.equals("-default")) {
-                    String strValue = args[++i];
-                    try {
-                        defaultValue = Long.valueOf(strValue);
-                    }
-                    catch(NumberFormatException e)
-                    {
-                        defaultValue = strValue;
-                    }
-                }
-			}
-			
-            if(url == null || object == null || (attributeName == null && methodName == null))
-                throw new Exception("Required options not specified");
-		}
-        catch(Exception e) {
-			throw new ParseError(e);
-		}
-	}
-
-
-	private void printHelp(PrintStream out) {
-		InputStream is = JMXMultiQuery.class.getClassLoader().getResourceAsStream("jmxquery/HELP");
-		BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-		try{
-			while(true){
-				String s = reader.readLine();
-				if(s==null)
-					break;
-				out.println(s);
-			}
-		} catch (IOException e) {
-			out.println(e);
-		}finally{
-			try {
-				reader.close();
-			} catch (IOException e) {
-				out.println(e);
-			}
-		}	
-	}
+    }
 }
