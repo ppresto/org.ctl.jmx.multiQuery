@@ -1,0 +1,51 @@
+Description: CTL JMX Query Tool for remote jmx performance monitoring
+
+Usage: jmxMultiQuery [-option...] -U url -O object -A attribute
+       (to query an attribute)
+   or  jmxMultiQuery -U url -O object -A attribute -add "-A 2nd_Attribute" -add "-O newObject -A 3rd_Attribute"
+   or  jmxMultiQuery [-option...] -U url -O object -M method
+       (to invoke a zero-argument method)
+
+
+Mandatory parameters are:
+ -U     JMX URL, for example: "service:jmx:rmi:///jndi/rmi://localhost:1616/jmxrmi
+     or for Jboss: "service:jmx:
+ -O     Object name to be checked, for example, "java.lang:type=Memory"
+ -A   	Attribute of the object to be checked, for example, "NonHeapMemoryUsage" (not compatible with -M switch)
+ -M     Zero-argument method to be invoked (not compatible with -A switch)
+
+Options are:
+ -help
+		This Help Menu
+ -K <key>
+        Key for compound data, for example, "used"
+ -I <info attribute>
+        Attribute of the object containing information for text output
+ -J <info attribute key>
+        Attribute key for -I attribute compound data, for example, "used"
+ -v[v[v[v]]]
+	    Verbatim level controlled as a number of v
+ -w <limit>
+	    Warning long value
+ -c <limit>
+	    Critical long value
+ -default <value>
+        Use default value if requested object/attribute/method does not exist
+ -username <user name> 
+ 		User credentials for JMX
+ -password <password>
+	    Password credentials for JMX 
+ -x
+ 		Remove Warning/Critical thresholds from performance data for pnp4nagios graph visibility.  
+ 		If set, all monitors inherit this value.
+ -r
+    	Replace the default jmx attribute name with a custom one.
+ -add
+ 		put additional arguments in "".  multiple -add options are supported
+ -calc
+ 		run a single calculation (*/+-) to change the jmx value. 
+ 		To convert the jmx value from Kbytes to MB: -calc /1024 
+
+Note that if warning level > critical, system checks object attribute value to be LESS THAN OR EQUAL warning, critical
+If warning level < critical, system checks object attribute value to be MORE THAN OR EQUAL warning, critical 
+	

@@ -1,6 +1,8 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Nagios plugin to monitor Java JMX (http://java.sun.com/jmx)attributes.
 #
 RDIR=`dirname $0`
-$JAVA_HOME/bin/java  -jar $RDIR/jmxquery.jar $@
+#export JAVA_OPTS="-Djava.util.logging.manager=java.util.logging.LogManager -Djava.util.logging.config.file=logging.properties"
+#export CLASSPATH="$CLASSPATH:$RDIR/jmxMultiQuery_lib/jboss-client.jar"
+/usr/bin/java $JAVA_OPTS -jar $RDIR/jmxMultiQuery.jar "$@"
