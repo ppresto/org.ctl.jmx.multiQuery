@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.MalformedURLException;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -28,12 +29,15 @@ public class jmxMonitor {
 	private JMXConnector connector;
 	private MBeanServerConnection connection;
 	private String warning, critical;
-	private String attributeName, infoAttribute, replaceName, expression;
+	private String attributeName, infoAttribute, replaceName, useAttr;
+	private Long totalTime;
 	private String attributeKey, infoKey;
     private String methodName;
 	private String object;
 	private String username, password;
 	private List additionalArgs = new ArrayList<String>();
+	private List <String>calc = new ArrayList<String>();
+	private String [] samples;
 	private boolean disableWarnCrit = false;
     private Object defaultValue;
     private static final int RETURN_OK = 0; // 	 The plugin was able to check the service and it appeared to be functioning properly
@@ -47,15 +51,17 @@ public class jmxMonitor {
 	
 	private Object checkData;
 	private Object infoData;
+	List<Map<String,String>> jmxAttrList = new ArrayList <Map<String,String>>();
 	
 	public jmxMonitor(){
 		//Map<String,String> jmxAttributes = new HashMap <String,String>();
 	}
-	public jmxMonitor(jmxMonitor monitor){
+	public jmxMonitor(jmxMonitor monitor, List jmxAttrList){
 		//Map<String,String> jmxAttributes = new HashMap <String,String>();
 		object = monitor.getObject();
 		url = monitor.getUrl();
 		disableWarnCrit = monitor.getdisableWarnCrit();
+		this.jmxAttrList = jmxAttrList;
 	}
 	private void printHelp() {
 		InputStream is = JMXMultiQuery.class.getClassLoader().getResourceAsStream("jmxMultiQuery/HELP");
@@ -161,8 +167,14 @@ public class jmxMonitor {
                 else if(option.equals("-r")) {
                 	replaceName = args[++i];
                 }
+                else if(option.equals("-samples")) {
+                	samples = args[++i].split(",");
+                }
                 else if(option.equals("-calc")) {
-                	expression = args[++i];
+                	calc.add(args[++i]);
+                }
+                else if(option.equals("-attrCalc")) {
+                	useAttr = args[++i];
                 }
                 else if(option.equals("-add")) {
                 	additionalArgs.add(args[++i]);
@@ -218,11 +230,32 @@ public class jmxMonitor {
 	// pull attribute value from jmx connection and object name
 	void check(MBeanServerConnection connection) throws Exception
     {
-        Object value;
+        Object value = null;
         try {
-            value = attributeName != null
-                           ? connection.getAttribute(new ObjectName(object), attributeName)
-                           : connection.invoke(new ObjectName(object), methodName, null, null);
+        	if (samples != null && samples.length == 3){
+        		totalTime = (long) 0;
+        		int sample = Integer.parseInt(samples[0]);
+        		int delay = Integer.parseInt(samples[1]);
+        		String algorithm = samples[2];
+        		List<Long> values = new ArrayList();
+        		for(int i=0; i<sample; i++){
+	        		Long startTime = System.nanoTime();
+	        		value = attributeName != null
+	                        ? connection.getAttribute(new ObjectName(object), attributeName)
+	                        : connection.invoke(new ObjectName(object), methodName, null, null);
+	                Thread.currentThread().sleep(delay);
+	                Long endTime = System.nanoTime();
+	                totalTime = endTime - startTime + totalTime;
+	                values.add((Long) value);
+        		}
+        		if(algorithm.matches("getDiffOverTime")){
+        			value = getDiffOverTime(values, totalTime);
+        		}
+        	} else {
+        		value = attributeName != null
+        				? connection.getAttribute(new ObjectName(object), attributeName)
+                        : connection.invoke(new ObjectName(object), methodName, null, null);
+        	}
         }
         catch(OperationsException e)
         {
@@ -254,23 +287,32 @@ public class jmxMonitor {
 			}
 		}
 	}
+	
 	public Map<String, String> validate(){
 		int status;
-		String keyName;
-		if (expression != null && checkData instanceof Number){
-    		String operator = (String) expression.subSequence(0,1);
-    		String number = expression.substring(1);
-    		double newData = 0;
-    		if(operator.equals("/")){
-    			newData = Double.parseDouble(checkData.toString()) / Double.parseDouble(number);  
-    		} else if(operator.equals("*")) {
-    			newData = Double.parseDouble(checkData.toString()) * Double.parseDouble(number); 
-    		} else if(operator.equals("-")) {
-    			newData = Double.parseDouble(checkData.toString()) - Double.parseDouble(number); 
-    		} else if(operator.equals("+")) {
-    			newData = Double.parseDouble(checkData.toString()) + Double.parseDouble(number); 
-    		}
-    		checkData = (Object)newData;
+		String keyName, monitorValue = null;
+		if (useAttr != null && checkData instanceof Number) {
+			String operator = (String) useAttr.subSequence(0,1);
+			String monitor = useAttr.substring(1);
+    		for (Map<String, String> a: jmxAttrList){
+			    for (Map.Entry<String, String> entry : a.entrySet()){
+		    		if (entry.getKey().equals("Attribute") && entry.getValue().equals(monitor)){
+		    			monitorValue = a.get("Value");
+		    		}
+		    	}
+	    	}
+    		if (monitorValue != null)
+    			checkData = calc(operator,monitorValue);
+		}
+		if (!calc.isEmpty() && checkData instanceof Number){
+			for ( String c : calc){
+	    		String operator = (String) c.subSequence(0,1);
+	    		String expr = c.substring(1);
+	    		if (isInteger(expr))
+	    			checkData = calc(operator,expr);
+	    		else
+	    			checkData = calc(operator,findAttrValue(expr));
+			}
     	}		
 		Map<String,String> jmxAttr = new HashMap<String,String>();
 		if(critical != null && compare( critical )){
@@ -413,4 +455,49 @@ public class jmxMonitor {
     {
         return ex.getCause() == null ? ex : rootCause(ex.getCause());
     }
+	
+	public boolean isInteger( String input ) {   
+	   try {   
+	      Integer.parseInt( input );   
+	      return true;   
+	   }   
+	   catch( Exception e){   
+	      return false;   
+	   }   
+	}  
+	
+	public Object calc(String operator, String number){
+		double newData = 0;
+		if(operator.equals("/")){
+			newData = Double.parseDouble(checkData.toString()) / Double.parseDouble(number);  
+		} else if(operator.equals("*")) {
+			newData = Double.parseDouble(checkData.toString()) * Double.parseDouble(number);
+		} else if(operator.equals("-")) {
+			newData = Double.parseDouble(checkData.toString()) - Double.parseDouble(number); 
+		} else if(operator.equals("+")) {
+			newData = Double.parseDouble(checkData.toString()) + Double.parseDouble(number); 
+		} else newData = 0;
+		return (Object)Double.parseDouble(decimalPlaces((float)newData));
+	}
+	public String findAttrValue(String attribute) {
+		for (Map<String, String> a: jmxAttrList){
+		    for (Map.Entry<String, String> entry : a.entrySet()){
+	    		if (entry.getKey().equals("Attribute") && entry.getValue().equals(attribute)){
+	    			return(a.get("Value"));
+	    		}
+	    	}
+    	}
+		return "0";
+	}
+
+	private double getDiffOverTime(List<Long> values, Long time){
+		Float value = null;
+		value = (float) (values.get(values.size()-1) - values.get(0));
+		value = value/time;
+		return Double.parseDouble(decimalPlaces(value));
+	}
+	private String decimalPlaces(Float num){
+		DecimalFormat df = new DecimalFormat("###.##");
+		return df.format(num);
+	}
 }

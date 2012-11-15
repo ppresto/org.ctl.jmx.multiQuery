@@ -4,5 +4,4 @@
 #
 RDIR=`dirname $0`
 export JAVA_OPTS="-Djava.util.logging.manager=java.util.logging.LogManager -Djava.util.logging.config.file=logging.properties"
-export CLASSPATH="$CLASSPATH:$RDIR/jmxMultiQuery_lib/jboss-client.jar"
-/usr/bin/java $JAVA_OPTS -cp $CLASSPATH -jar $RDIR/jmxMultiQuery.jar "$@"
+/usr/bin/java $JAVA_OPTS -jar $RDIR/jmxMultiQuery.jar "$@"
