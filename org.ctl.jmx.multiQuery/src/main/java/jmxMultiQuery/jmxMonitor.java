@@ -291,19 +291,6 @@ public class jmxMonitor {
 	public Map<String, String> validate(){
 		int status;
 		String keyName, monitorValue = null;
-		if (useAttr != null && checkData instanceof Number) {
-			String operator = (String) useAttr.subSequence(0,1);
-			String monitor = useAttr.substring(1);
-    		for (Map<String, String> a: jmxAttrList){
-			    for (Map.Entry<String, String> entry : a.entrySet()){
-		    		if (entry.getKey().equals("Attribute") && entry.getValue().equals(monitor)){
-		    			monitorValue = a.get("Value");
-		    		}
-		    	}
-	    	}
-    		if (monitorValue != null)
-    			checkData = calc(operator,monitorValue);
-		}
 		if (!calc.isEmpty() && checkData instanceof Number){
 			for ( String c : calc){
 	    		String operator = (String) c.subSequence(0,1);
