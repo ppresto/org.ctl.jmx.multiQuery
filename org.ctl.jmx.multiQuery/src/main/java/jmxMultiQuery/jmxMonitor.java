@@ -228,8 +228,7 @@ public class jmxMonitor {
 		return null;
     }
 	// pull attribute value from jmx connection and object name
-	void check(MBeanServerConnection connection) throws Exception
-    {
+	void check(MBeanServerConnection connection) throws Exception {
         Object value = null;
         try {
         	if (samples != null && samples.length == 3){
@@ -257,7 +256,7 @@ public class jmxMonitor {
                         : connection.invoke(new ObjectName(object), methodName, null, null);
         	}
         }
-        catch(OperationsException e)
+        catch(Exception e)
         {
             if(defaultValue != null)
                 value = defaultValue;

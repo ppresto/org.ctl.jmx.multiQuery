@@ -61,7 +61,11 @@ public class JMXMultiQuery
 			List<String> additionalMonitors = monitor.searchForAdditionalMonitors();
 			if (!additionalMonitors.isEmpty()) {
 				for( String m : additionalMonitors) {
-					mon = new jmxMonitor(monitor,jmxAttrList);
+					if (mon != null){
+						mon = new jmxMonitor(mon,jmxAttrList);
+					} else {
+						mon = new jmxMonitor(monitor,jmxAttrList);
+					}
 					mon.parseArgs(m.split(" "));
 					mon.check(connection);
 					Map<String,String> monData = new HashMap <String,String>(mon.validate());
