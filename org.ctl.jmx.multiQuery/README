@@ -1,0 +1,90 @@
+Description: CTL JMX Query Tool for remote jmx performance monitoring
+
+Usage: jmxMultiQuery [-option...] -U url -O object -A attribute
+       (to query an attribute)
+   or  jmxMultiQuery -U url -O object -A attribute -add "-A 2nd_Attribute" -add "-O newObject -A 3rd_Attribute"
+   or  jmxMultiQuery [-option...] -U url -O object -M method
+       (to invoke a zero-argument method)
+
+Mandatory parameters are:
+ -U     JMX URL
+        example (generic),      "service:jmx:rmi:///jndi/rmi://hostname:1616/jmxrmi"
+        example (jboss),        "service:jmx:remoting-jmx://hostname:9999"
+ -O     Object name to be checked
+        example, "java.lang:type=Memory"
+ -A     Attribute of the object to be checked
+        example, "NonHeapMemoryUsage" (not compatible with -M switch)
+ -M     Zero-argument method to be invoked (not compatible with -A switch)
+
+Options are:
+ -help
+                This Help Menu
+ -K <key>
+        Key for compound data, for example, "used"
+ -I <info attribute>
+        Attribute of the object containing information for text output
+ -J <info attribute key>
+        Attribute key for -I attribute compound data, for example, "used"
+ -v[v[v[v]]]
+            Verbatim level controlled as a number of v
+ -w <limit>
+            Warning long value
+ -c <limit>
+            Critical long value
+ -default <value>
+        Use default value if requested object/attribute/method does not exist
+ -username <user name>
+                User credentials for JMX
+ -password <password>
+            Password credentials for JMX
+ -x
+                Remove Warning/Critical thresholds from performance data for pnp4nagios graph visibility.
+                If set, all monitors inherit this value.
+ -r
+        Replace the default jmx attribute name with a custom one.
+ -add
+                put additional arguments in "".  multiple -add options are supported
+ -calc
+                run a single calculation (*/+-) to change the jmx value.
+                To convert the jmx value from Kbytes to MB: -calc /1024
+ -samples  2,2000,getDiffOverTime
+        Take # of samples, wait for # of ms, and calculate the difference over time.
+        CPU usage (warn 95%): -O java.lang:type=OperatingSystem -A ProcessCpuTime -r Cpu% -samples 2,2000,getDiffOverTime -calc *100 -c 95
+
+Note that if warning level > critical, system checks object attribute value to be LESS THAN OR EQUAL warning, critical
+If warning level < critical, system checks object attribute value to be MORE THAN OR EQUAL warning, critical
+
+### Weblogic Examples ###
+1.  Get HeapFreePercent for Sun JDK and replace (-r) the default output name to 'HeapFree%'
+./check_jmx -U service:jmx:rmi:///jndi/rmi://test.example.com:17703/jmxrmi -O com.bea:ServerRuntime=qcquotinge2e1,Name=qcquotinge2e1,Type=JVMRuntime -A HeapFreePercent -r HeapFree% -w 20 -c 5
+
+2. Get ExecuteThreadTotalCount, HoggingThreadCount, and Queuelength from one Object.  Then Get StuckThreadCount and PendingRequests from a deployed application (different object). In this case the deployed app is "qcquote"
+./check_jmx -U service:jmx:rmi:///jndi/rmi://host.example.com:17703/jmxrmi -O com.bea:ServerRuntime=qcquotinge2e1,Name=ThreadPoolRuntime,Type=ThreadPoolRuntime -A ExecuteThreadTotalCount -w 100 -c 200 \
+-add "-A HoggingThreadCount -w 5 -c 10" \
+-add "-A QueueLength -w 10 -c 20" \
+-add "-O com.bea:ServerRuntime=qcquotinge2e1,Name=default,ApplicationRuntime=qcquote,Type=WorkManagerRuntime -A StuckThreadCount -w 5 -c 20" \
+-add "-A PendingRequests -w 10 -c 25"
+
+### JBoss JVM Health Example ###
+./check_jmxJboss.sh -U service:jmx:rmi:///jndi/rmi://test.example.com:17703 -O java.lang:type=Memory -A HeapMemoryUsage -K max -r TotalMemory \
+        -add "-A HeapMemoryUsage -K used -calc /TotalMemory -calc *100 -c 95 -r UsedMemory%" \
+        -add "-A NonHeapMemoryUsage -K used -r NonHeap" \
+        -add "-O java.lang:type=MemoryPool,name=PS Perm Gen -A Usage -K used -r PermGen" \
+        -add "-O java.lang:type=MemoryPool,name=PS Old Gen -A Usage -K used -r OldGen" \
+        -add "-O java.lang:type=MemoryPool,name=PS Survivor Space -A Usage -K used -r Survivor" \
+        -add "-O java.lang:type=MemoryPool,name=PS Eden Space -A Usage -K used -r Eden" \
+        -add "-O java.lang:type=OperatingSystem -A ProcessCpuTime -r Cpu% -samples 2,2000,getDiffOverTime -calc *100 -c 95" \
+        -add "-O -A MaxFileDescriptorCount -r maxFileDesc" \
+        -add "-O -A OpenFileDescriptorCount -calc /maxFileDesc -calc *100 -c 95 -r usedFileDesc%" \
+        -add "-O java.lang:type=Threading -A TotalStartedThreadCount -r Started" \
+        -add "-O -A ThreadCount -r Live" \
+        -add "-O -A DaemonThreadCount -r DaemonThreads" \
+        -add "-O java.lang:type=ClassLoading -A LoadedClassCount" \
+
+#Sun JDK - Concurrent Mark Sweep GC
+./check_jmxJboss.sh -U service:jmx:rmi:///jndi/rmi://test.example.com:17703 -O java.lang:type=Memory -A HeapMemoryUsage -K max -r TotalMemory \
+       -add "-A NonHeapMemoryUsage -K used -r NonHeap" \
+       -add "-O java.lang:type=MemoryPool,name=CMS Perm Gen -A Usage -K used -r PermGen" \
+       -add "-O java.lang:type=MemoryPool,name=CMS Old Gen -A Usage -K used -r OldGen" \
+       -add "-O java.lang:type=MemoryPool,name=Par Survivor Space -A Usage -K used -r Survivor" \
+       -add "-O java.lang:type=MemoryPool,name=Par Eden Space -A Usage -K used -r Eden" \
