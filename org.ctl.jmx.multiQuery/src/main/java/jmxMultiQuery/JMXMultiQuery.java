@@ -53,9 +53,9 @@ public class JMXMultiQuery
 			monitorData = monitor.validate();
 			jmxAttrList.add(monitorData);
        } catch (ParseError e) {
-			e.printStackTrace();
+			return monitor.report(e);
 		} catch(Exception ex) {
-           return monitor.report(ex);
+			return monitor.report(ex);
        }
        try {
 			List<String> additionalMonitors = monitor.searchForAdditionalMonitors();
@@ -88,7 +88,7 @@ public class JMXMultiQuery
             }
             
 		} catch (ParseError e) {
-			e.printStackTrace();
+			return mon.report(e);
 		} catch(Exception ex) {
             return mon.report(ex);
         }

@@ -54,23 +54,20 @@ public class jmxMonitor {
 	List<Map<String,String>> jmxAttrList = new ArrayList <Map<String,String>>();
 	
 	public jmxMonitor(){
-		//Map<String,String> jmxAttributes = new HashMap <String,String>();
 	}
 	public jmxMonitor(jmxMonitor monitor, List jmxAttrList){
-		//Map<String,String> jmxAttributes = new HashMap <String,String>();
 		object = monitor.getObject();
 		url = monitor.getUrl();
 		disableWarnCrit = monitor.getdisableWarnCrit();
 		this.jmxAttrList = jmxAttrList;
 	}
-	private void printHelp() {
-		InputStream is = JMXMultiQuery.class.getClassLoader().getResourceAsStream("jmxMultiQuery/HELP");
+	public void printHelp() {
+		InputStream is = JMXMultiQuery.class.getClassLoader().getResourceAsStream("resources/jmxMultiQuery/HELP");
 		BufferedReader reader = new BufferedReader(new InputStreamReader(is));
 		StringBuilder help = new StringBuilder();
 		try{
 			while(true){
 				String s = reader.readLine();
-				//System.out.println(s);
 				if(s==null)
 					break;
 				help.append(s +"\n");
@@ -112,7 +109,6 @@ public class jmxMonitor {
 	}
 	
 	public void parseArgs(String [] args) throws ParseError, Exception {
-	//public void parseArgs(String [] args) throws Exception {
 		try{
 			for(int i=0;i<args.length;i++){
 				String option = args[i];
@@ -202,8 +198,8 @@ public class jmxMonitor {
             }        
 		}
         catch(Exception e) {
-			throw new ParseError(e);
-		}
+        	report(e);
+		} 
 	}
 	//Connect
 	public MBeanServerConnection connect(String url) {
@@ -396,19 +392,20 @@ public class jmxMonitor {
 			throw new RuntimeException(level + "is not of type Number,String or Boolean");
 		}
 
-	//private int report(Exception ex, PrintStream out) {
 	public int report(Exception ex) {
 		StringBuilder eReport = new StringBuilder();
 		if(ex instanceof ParseError){
 			eReport.append(UNKNOWN_STRING+" ");
 			eReport.append(reportException(ex, eReport));		
-			eReport.append(" Usage: check_jmx -help ");
+			eReport.append(" Usage: check_jmx -help");
+			printHelp();
 			System.out.println(eReport.toString());
 			return RETURN_UNKNOWN;
 		}else{
 			eReport.append(CRITICAL_STRING+" ");
 			eReport.append(reportException(ex, eReport));		
 			eReport.append("");
+			printHelp();
 			System.out.println(eReport.toString());
 			return RETURN_CRITICAL;
 		}
