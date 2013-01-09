@@ -251,24 +251,22 @@ public class jmxMonitor {
         				? connection.getAttribute(new ObjectName(object), attributeName)
                         : connection.invoke(new ObjectName(object), methodName, null, null);
         	}
-        }
-        catch(Exception e)
-        {
-            if(defaultValue != null)
-                value = defaultValue;
-            else
-                throw e;
-        }
-
 		if(value instanceof CompositeDataSupport) {
-            if(attributeKey ==null) {
+            if(attributeKey == null) {
                 throw new ParseError("Attribute key is null for composed data "+object);
             }
             checkData = ((CompositeDataSupport) value).get(attributeKey);
 		}
-        else {
+		else {
 			checkData = value;
 		}
+       }
+       catch(Exception e){
+            if(defaultValue != null)
+                checkData = defaultValue;
+            else
+                throw e;
+       }
 		
 		if(infoAttribute !=null){
 			Object infoValue = infoAttribute.equals(attributeName)
@@ -280,6 +278,9 @@ public class jmxMonitor {
             else {
 				infoData = infoValue;
 			}
+		}
+		if (value == null && defaultValue != null){
+			checkData = defaultValue;
 		}
 	}
 	
@@ -452,6 +453,12 @@ public class jmxMonitor {
 	public Object calc(String operator, String number){
 		double newData = 0;
 		if(operator.equals("/")){
+			if (Double.parseDouble(number) == 0){
+				if (defaultValue != null)
+					return defaultValue;
+				else
+					return "na";
+			} else
 			newData = Double.parseDouble(checkData.toString()) / Double.parseDouble(number);  
 		} else if(operator.equals("*")) {
 			newData = Double.parseDouble(checkData.toString()) * Double.parseDouble(number);

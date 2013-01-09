@@ -47,6 +47,8 @@ Options are:
  -calc
                 run a single calculation (*/+-) to change the jmx value.
                 To convert the jmx value from Kbytes to MB: -calc /1024
+                To use a previous jmx value in a multiQuery use the attribute name: -calc /Uptime
+                
  -samples  2,2000,getDiffOverTime
         Take # of samples, wait for # of ms, and calculate the difference over time.
         CPU usage (warn 95%): -O java.lang:type=OperatingSystem -A ProcessCpuTime -r Cpu% -samples 2,2000,getDiffOverTime -calc *100 -c 95

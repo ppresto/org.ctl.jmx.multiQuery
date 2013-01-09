@@ -3,14 +3,5 @@
 # Nagios plugin to monitor Java JMX (http://java.sun.com/jmx)attributes.
 #
 RDIR=`dirname $0`
+java $JAVA_OPTS -jar $RDIR/jmxMultiQuery.jar "$@"
 
-if [[ ! -z $JAVA_HOME ]]; then
-  JAVA=$JAVA_HOME/bin/java
-elif [[ $(echo $(which java | grep -v "no")) ]]; then
-  JAVA=$(which java)
-else
-  echo "Can't find java in your PATH"
-  exit 1
-fi
-
-$JAVA $JAVA_OPTS -jar $RDIR/jmxMultiQuery.jar "$@"
